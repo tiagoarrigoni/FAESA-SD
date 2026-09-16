@@ -9,3 +9,8 @@ venv/
 *_pb2_grpc.py
 .pytest_cache/
 .DS_Store
+logs/
+_diag_*.py
+_test_fake_redis_server.py
+diag*.log
+logs_*.log
