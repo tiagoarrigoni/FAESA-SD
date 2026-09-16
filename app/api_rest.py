@@ -14,12 +14,15 @@ Docs:   http://localhost:8000/docs
 """
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from app import fila
+from app.logging_utils import configurar_log
 from app.modelo import carregar_modelo
 
 app = FastAPI(title="Servico de Inferencia - C1.A2", version="0.1.0")
+log = configurar_log("api_rest")
 
 modelo = None
 
@@ -34,7 +37,21 @@ def _subir():
     global modelo
     inicio = time.time()
     modelo = carregar_modelo()
-    print(f"[startup] modelo carregado em {time.time() - inicio:.3f}s")
+    log.info(f"modelo carregado em {time.time() - inicio:.3f}s")
+
+
+@app.middleware("http")
+async def log_requisicoes(request: Request, chamar_proximo):
+    """Registra toda requisição recebida: método, rota, tamanho e tempo de resposta (item 6)."""
+    inicio = time.time()
+    corpo = await request.body()
+    resposta = await chamar_proximo(request)
+    tempo_ms = round((time.time() - inicio) * 1000, 2)
+    log.info(
+        f"{request.method} {request.url.path} | tamanho_entrada={len(corpo)}B "
+        f"| status={resposta.status_code} | tempo_ms={tempo_ms}"
+    )
+    return resposta
 
 
 @app.get("/saude")
@@ -56,18 +73,23 @@ def predict_sync(entrada: Entrada):
 # ------------------------------------------------------------------
 # TAREFA 1 - submissao assincrona
 # ------------------------------------------------------------------
-# @app.post("/predict", status_code=202)
-# def predict(entrada: Entrada):
-#     """Deve enfileirar a tarefa e devolver {"id": ...} SEM esperar."""
-#     # DICA: use app.fila.enfileirar(entrada.texto)
-#     raise NotImplementedError("implemente a submissao assincrona")
+@app.post("/predict", status_code=202)
+def predict(entrada: Entrada):
+    """Enfileira a tarefa e devolve {"id": ...} SEM esperar a inferencia."""
+    if not entrada.texto.strip():
+        raise HTTPException(status_code=400, detail="texto vazio")
+    tarefa_id = fila.enfileirar(entrada.texto)
+    log.info(f"tarefa {tarefa_id} enfileirada | tamanho_entrada={len(entrada.texto)}")
+    return {"id": tarefa_id}
 
 
 # ------------------------------------------------------------------
 # TAREFA 2 - consulta do resultado
 # ------------------------------------------------------------------
-# @app.get("/resultado/{tarefa_id}")
-# def resultado(tarefa_id: str):
-#     """Deve devolver o resultado; 404 se o id nao existir."""
-#     # DICA: use app.fila.buscar_resultado(tarefa_id)
-#     raise NotImplementedError("implemente a consulta de resultado")
+@app.get("/resultado/{tarefa_id}")
+def resultado(tarefa_id: str):
+    """Devolve o resultado da tarefa; 404 se o id nao existir."""
+    dados = fila.buscar_resultado(tarefa_id)
+    if dados is None:
+        raise HTTPException(status_code=404, detail="id nao encontrado")
+    return dados
