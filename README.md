@@ -3,6 +3,8 @@
 **Sistemas Distribuídos e Computação em Nuvem · FAESA · 2026/2**
 Trabalho C1.A2 — baseado no [kit de partida](https://github.com/howardroatti/sd-2026-2-kit-c1a2) do Prof. Howard Roatti.
 
+**Alunos** - Eliã Barros Ferreira 
+
 Serviço que recebe um texto, executa uma inferência de classificação de sentimento
 (positivo/negativo) e devolve o resultado por **duas interfaces de comunicação**
 (REST e gRPC), processando de forma **assíncrona** via fila + worker.
