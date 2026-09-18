@@ -102,43 +102,37 @@ Implementado em `app/logging_utils.py`.
 
 ## Como executar do zero
 
-Pré-requisitos: **Python 3.11+** e **Docker Desktop** (para o Redis).
+Pré-requisito: Apenas o **Docker** e **Docker Compose** instalados na sua máquina. Não é mais necessário instalar Python ou gerenciar ambientes virtuais.
 
 ```bash
 # 1. Clone e entre na pasta
 git clone https://github.com/tiagoarrigoni/FAESA-SD.git
 cd FAESA-SD
 
-# 2. Crie e ative o ambiente virtual
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
+# 2. Suba todos os serviços (API, gRPC, 2 Workers e Redis)
+docker compose up --build -d
+```
 
-# 3. Instale as dependências
-pip install -r requirements.txt
+O comando acima fará o build da imagem, instalará as dependências, gerará os stubs do gRPC automaticamente e subirá os seguintes serviços:
+- **API REST**: `http://localhost:8000/docs`
+- **Servidor gRPC**: Porta `50051`
+- **Workers**: 2 instâncias rodando em background dividindo a carga da fila.
+- **Redis**: Porta `6379`
 
-# 4. Suba o Redis
-docker compose up -d
-
-# 5. Gere os stubs do gRPC (necessário antes de rodar o servidor gRPC)
-python -m grpc_tools.protoc -I proto --python_out=. --grpc_python_out=. proto/inferencia.proto
-
-# 6. Em terminais separados, suba os três serviços:
-uvicorn app.api_rest:app --port 8000       # API REST — http://localhost:8000/docs
-python -m app.worker                        # worker (pode subir mais de um)
-python -m app.servidor_grpc                 # servidor gRPC — porta 50051
+Para ver os logs de todos os serviços em tempo real:
+```bash
+docker compose logs -f
 ```
 
 Teste rápido:
 
 ```bash
-# síncrono
-python exemplos/cliente_rest.py "o atendimento foi otimo"
+# síncrono (usando a API que está rodando no docker)
+curl -X POST http://localhost:8000/predict-sync -H "Content-Type: application/json" -d "{\"texto\": \"o atendimento foi otimo\"}"
 
-# assincrono (submete, consulta o id, aguarda o worker processar)
+# assíncrono (submete, consulta o id, aguarda os workers processarem)
 curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d "{\"texto\": \"produto excelente\"}"
+# Pegue o "id" devolvido e consulte:
 curl http://localhost:8000/resultado/<id-devolvido-acima>
 ```
 
@@ -163,14 +157,9 @@ por ser assíncrona. Usar o IP direto elimina esse atraso.
 
 ## Extensões implementadas
 
-Nenhuma das extensões opcionais (múltiplos workers, cache, latência média,
-batch via REST) foi implementada além do núcleo obrigatório — o
-`PreverLote` do gRPC já cobre o caso de lote pela via gRPC.
+A extensão **"Subir 2+ workers e demonstrar a divisão de carga"** foi implementada nativamente no `docker-compose.yml`, que está configurado com `deploy: replicas: 2` para o serviço `worker`. Isso garante que sempre que a aplicação for iniciada via docker, 2 instâncias do worker estarão consumindo da mesma fila do Redis simultaneamente através do `BLPOP`.
 
-Para demonstrar múltiplos workers dividindo carga, basta abrir mais
-terminais rodando `python -m app.worker`: cada um consome da mesma fila
-Redis via `BLPOP`, que garante que cada tarefa é entregue a exatamente um
-worker.
+As demais extensões opcionais (cache, latência média, batch via REST) ainda não foram implementadas. O `PreverLote` do gRPC já cobre o caso de lote pela via gRPC.
 
 ---
 
