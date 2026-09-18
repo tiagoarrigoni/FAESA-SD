@@ -1,0 +1,9 @@
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+scikit-learn==1.9.1
+joblib==1.6.0
+redis==5.0.8
+requests==2.32.3
+grpcio==1.84.0
+grpcio-tools==1.84.0
